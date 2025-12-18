@@ -42,7 +42,68 @@
 /* Private variables ---------------------------------------------------------*/
 
 /* USER CODE BEGIN PV */
+static const uint8_t SPI_BIT_LUT[] = {
+  0b10010000,
+  0b10011000,
+  0b11010000,
+  0b11011000,
+};
 
+static const uint8_t SPI_BLACK[] = {
+  0b10010010,
+  0b01001001,
+  0b00100100,
+
+  0b10010010,
+  0b01001001,
+  0b00100100,
+
+  0b10010010,
+  0b01001001,
+  0b00100100,
+};
+
+static const uint8_t SPI_RED[] = {
+  0b10010010,
+  0b01001001,
+  0b00100100,
+
+  0b10010010,
+  0b01101101,
+  0b10110110,
+
+  0b10010010,
+  0b01001001,
+  0b00100100,
+};
+
+static const uint8_t SPI_GREEN[] = {
+  0b10010010,
+  0b01101101,
+  0b10110110,
+
+  0b10010010,
+  0b01001001,
+  0b00100100,
+
+  0b10010010,
+  0b01001001,
+  0b00100100,
+};
+
+static const uint8_t SPI_BLUE[] = {
+  0b10010010,
+  0b01001001,
+  0b00100100,
+
+  0b10010010,
+  0b01001001,
+  0b00100100,
+
+  0b10010010,
+  0b01101101,
+  0b10110110,
+};
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -98,15 +159,53 @@ int main(void)
   MX_DMA_Init();
   MX_SPI1_Init();
   /* USER CODE BEGIN 2 */
-
+  LL_SPI_Enable(SPI1);
   /* USER CODE END 2 */
 
   /* Infinite loop */
   /* USER CODE BEGIN WHILE */
   while (1)
   {
-    LL_GPIO_TogglePin(LED_GPIO_Port, LED_Pin);
-    LL_mDelay(500);  // 100ms delay
+    const int zeroIters = 1;
+    const uint8_t BIT_ZERO = 0b100;
+    const uint8_t BIT_ONE = 0b110;
+
+    // static int count = 0;
+
+    // for (int i = 0; i < 89; i++) {
+    //   const uint8_t *col = (count) % 3 == 0? SPI_RED : ((count) % 3 == 1? SPI_GREEN : SPI_BLUE);
+    //   for (int j = 0; j < 9; j++) {
+    //     while (!LL_SPI_IsActiveFlag_TXE(SPI1));
+    //     LL_SPI_TransmitData8(SPI1, col[j]);
+    //   }
+    // }
+
+    // count += 1;
+    // if (count >= 3) { count = 0; }
+
+    static int count = 0;
+
+    for (int i = 0; i < 89; i++) {
+      const uint8_t *col = i == count? SPI_GREEN : SPI_BLACK;
+      // const uint8_t *col = SPI_BLACK;
+      for (int j = 0; j < 9; j++) {
+        while (!LL_SPI_IsActiveFlag_TXE(SPI1));
+        LL_SPI_TransmitData8(SPI1, col[j]);
+      }
+    }
+
+    count += 1;
+    if (count >= 89) { count = 0; }
+
+    // Write zeroes
+    for (int i = 0; i < zeroIters; i++) {
+      while (!LL_SPI_IsActiveFlag_TXE(SPI1));
+      LL_SPI_TransmitData8(SPI1, 0x00);
+    }
+    while (!LL_SPI_IsActiveFlag_TXE(SPI1));
+    while (LL_SPI_IsActiveFlag_BSY(SPI1));
+    LL_mDelay(1);
+    
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
@@ -279,7 +378,7 @@ static void MX_GPIO_Init(void)
   LL_GPIO_Init(LED_GPIO_Port, &GPIO_InitStruct);
 
   /* USER CODE BEGIN MX_GPIO_Init_2 */
-
+  LL_GPIO_SetOutputPin(LED_GPIO_Port, LED_Pin);
   /* USER CODE END MX_GPIO_Init_2 */
 }
 
