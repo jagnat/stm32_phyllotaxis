@@ -1,0 +1,21 @@
+{
+	"folders":
+	[
+		{
+			"path": "."
+		}
+	],
+	"build_systems":
+	[
+		{
+			"name": "Build",
+			"working_dir": "${project_path}",
+			"shell_cmd": "make"
+		},
+		{
+			"name": "Flash",
+			"working_dir": "${project_path}",
+			"shell_cmd": "st-flash --reset write build/stm32_phyllotaxis.bin 0x8000000"
+		}
+	]
+}

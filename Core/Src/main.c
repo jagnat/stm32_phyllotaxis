@@ -21,7 +21,7 @@
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
-
+#include <stdbool.h>
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -31,7 +31,7 @@
 
 /* Private define ------------------------------------------------------------*/
 /* USER CODE BEGIN PD */
-
+#define NUM_LEDS 89
 /* USER CODE END PD */
 
 /* Private macro -------------------------------------------------------------*/
@@ -41,69 +41,51 @@
 
 /* Private variables ---------------------------------------------------------*/
 
+const uint8_t gamma8[] = {
+ 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+ 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1,
+ 1, 1, 1, 1, 1, 1, 1, 1, 1, 2, 2, 2, 2, 2, 2, 2,
+ 2, 3, 3, 3, 3, 3, 3, 3, 4, 4, 4, 4, 4, 5, 5, 5,
+ 5, 6, 6, 6, 6, 7, 7, 7, 7, 8, 8, 8, 9, 9, 9, 10,
+ 10, 10, 11, 11, 11, 12, 12, 13, 13, 13, 14, 14, 15, 15, 16, 16,
+ 17, 17, 18, 18, 19, 19, 20, 20, 21, 21, 22, 22, 23, 24, 24, 25,
+ 25, 26, 27, 27, 28, 29, 29, 30, 31, 32, 32, 33, 34, 35, 35, 36,
+ 37, 38, 39, 39, 40, 41, 42, 43, 44, 45, 46, 47, 48, 49, 50, 50,
+ 51, 52, 54, 55, 56, 57, 58, 59, 60, 61, 62, 63, 64, 66, 67, 68,
+ 69, 70, 72, 73, 74, 75, 77, 78, 79, 81, 82, 83, 85, 86, 87, 89,
+ 90, 92, 93, 95, 96, 98, 99,101,102,104,105,107,109,110,112,114,
+ 115,117,119,120,122,124,126,127,129,131,133,135,137,138,140,142,
+ 144,146,148,150,152,154,156,158,160,162,164,167,169,171,173,175,
+ 177,180,182,184,186,189,191,193,196,198,200,203,205,208,210,213,
+ 215,218,220,223,225,228,231,233,236,239,241,244,247,249,252,255 };
+
 /* USER CODE BEGIN PV */
-static const uint8_t SPI_BIT_LUT[] = {
-  0b10010000,
-  0b10011000,
-  0b11010000,
-  0b11011000,
+// Translate from 4 bit nibbles from color channels
+// into SPI neopixel bits
+// 0 -> 100
+// 1 -> 110
+// Starting from MSB
+const uint16_t SPI_NIBBLE_LUT[] = {
+  04444, // 0
+  04446, // 1
+  04464, // 2
+  04466, // 3
+  04644, // 4
+  04646, // 5
+  04664, // 6
+  04666, // 7
+  06444, // 8
+  06446, // 9
+  06464, // A
+  06466, // B
+  06644, // C
+  06646, // D
+  06664, // E
+  06666, // F
 };
 
-static const uint8_t SPI_BLACK[] = {
-  0b10010010,
-  0b01001001,
-  0b00100100,
-
-  0b10010010,
-  0b01001001,
-  0b00100100,
-
-  0b10010010,
-  0b01001001,
-  0b00100100,
-};
-
-static const uint8_t SPI_RED[] = {
-  0b10010010,
-  0b01001001,
-  0b00100100,
-
-  0b10010010,
-  0b01101101,
-  0b10110110,
-
-  0b10010010,
-  0b01001001,
-  0b00100100,
-};
-
-static const uint8_t SPI_GREEN[] = {
-  0b10010010,
-  0b01101101,
-  0b10110110,
-
-  0b10010010,
-  0b01001001,
-  0b00100100,
-
-  0b10010010,
-  0b01001001,
-  0b00100100,
-};
-
-static const uint8_t SPI_BLUE[] = {
-  0b10010010,
-  0b01001001,
-  0b00100100,
-
-  0b10010010,
-  0b01001001,
-  0b00100100,
-
-  0b10010010,
-  0b01101101,
-  0b10110110,
-};
+uint32_t urgb_buffer[NUM_LEDS];
+uint8_t spi_buffer[9 * NUM_LEDS];
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -113,10 +95,40 @@ static void MX_DMA_Init(void);
 static void MX_SPI1_Init(void);
 /* USER CODE BEGIN PFP */
 
+static void write_urgb(uint32_t rgb, uint8_t *data_ptr);
+static uint32_t make_urgb(uint8_t r, uint8_t g, uint8_t b);
+
 /* USER CODE END PFP */
 
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
+
+void write_urgb(uint32_t rgb, uint8_t *data_ptr) {
+  uint16_t g_hi = SPI_NIBBLE_LUT[(rgb >> 20) & 0xf];
+  uint16_t g_lo = SPI_NIBBLE_LUT[(rgb >> 16) & 0xf];
+
+  uint16_t r_hi = SPI_NIBBLE_LUT[(rgb >> 12) & 0xf];
+  uint16_t r_lo = SPI_NIBBLE_LUT[(rgb >> 8) & 0xf];
+
+  uint16_t b_hi = SPI_NIBBLE_LUT[(rgb >> 4) & 0xf];
+  uint16_t b_lo = SPI_NIBBLE_LUT[(rgb >> 0) & 0xf];
+
+  data_ptr[0] = g_hi >> 4;
+  data_ptr[1] = (g_hi << 4) | (g_lo >> 8);
+  data_ptr[2] = g_lo;
+
+  data_ptr[3] = r_hi >> 4; 
+  data_ptr[4] = (r_hi << 4) | (r_lo >> 8);
+  data_ptr[5] = r_lo; 
+
+  data_ptr[6] = b_hi >> 4;
+  data_ptr[7] = (b_hi << 4) | (b_lo >> 8);
+  data_ptr[8] = b_lo;
+}
+
+uint32_t make_urgb(uint8_t r, uint8_t g, uint8_t b) {
+  return ((uint32_t) (r) << 8) | ((uint32_t) (g) << 16) | (uint32_t) (b);
+}
 
 /* USER CODE END 0 */
 
@@ -167,37 +179,53 @@ int main(void)
   while (1)
   {
     const int zeroIters = 1;
-    const uint8_t BIT_ZERO = 0b100;
-    const uint8_t BIT_ONE = 0b110;
-
-    // static int count = 0;
-
-    // for (int i = 0; i < 89; i++) {
-    //   const uint8_t *col = (count) % 3 == 0? SPI_RED : ((count) % 3 == 1? SPI_GREEN : SPI_BLUE);
-    //   for (int j = 0; j < 9; j++) {
-    //     while (!LL_SPI_IsActiveFlag_TXE(SPI1));
-    //     LL_SPI_TransmitData8(SPI1, col[j]);
-    //   }
-    // }
-
-    // count += 1;
-    // if (count >= 3) { count = 0; }
 
     static int count = 0;
 
     for (int i = 0; i < 89; i++) {
-      const uint8_t *col = i == count? SPI_GREEN : SPI_BLACK;
-      // const uint8_t *col = SPI_BLACK;
-      for (int j = 0; j < 9; j++) {
-        while (!LL_SPI_IsActiveFlag_TXE(SPI1));
-        LL_SPI_TransmitData8(SPI1, col[j]);
-      }
+      urgb_buffer[i] = make_urgb(0, 0, 0);
+    }
+
+    static uint8_t level = 0;
+    static bool ascending = true;
+
+    level = ascending? (level + 1) : (level - 1);
+    if (level == 0) {
+      ascending = true;
+    }
+    if (level == 255) {
+      ascending = false;
+    }
+
+    // urgb_buffer[76] = make_urgb(level, 0, 0);
+    urgb_buffer[76] = make_urgb(0, gamma8[level], gamma8[level]);
+
+    // for (int i = 0; i < 89; i++) {
+    //   uint32_t col = i == count? make_urgb(1, 0, 0) : make_urgb(0x0, 0x0, 0x0);
+    //   if (i == (count + 30) % NUM_LEDS) {
+    //     col = make_urgb(255, 0, 0);
+    //   }
+    //   if (i == (count + 60) % NUM_LEDS) {
+    //     col = make_urgb(5, 0, 0);
+    //   }
+    //   urgb_buffer[i] = col;
+    // }
+
+    uint8_t *walk = spi_buffer;
+    for (int i = 0; i < 89; i++) {
+      write_urgb(urgb_buffer[i], walk);
+      walk += 9;
+    }
+
+    for (int i = 0; i < 89 * 9; i++) {
+      while (!LL_SPI_IsActiveFlag_TXE(SPI1));
+      LL_SPI_TransmitData8(SPI1, spi_buffer[i]);
     }
 
     count += 1;
     if (count >= 89) { count = 0; }
 
-    // Write zeroes
+    // Write extra zeroes
     for (int i = 0; i < zeroIters; i++) {
       while (!LL_SPI_IsActiveFlag_TXE(SPI1));
       LL_SPI_TransmitData8(SPI1, 0x00);
@@ -395,6 +423,7 @@ void Error_Handler(void)
   /* USER CODE BEGIN Error_Handler_Debug */
   /* User can add his own implementation to report the HAL error return state */
   __disable_irq();
+  LL_GPIO_ResetOutputPin(LED_GPIO_Port, LED_Pin);
   while (1)
   {
   }
