@@ -85,7 +85,7 @@ const uint16_t SPI_NIBBLE_LUT[] = {
 };
 
 uint32_t urgb_buffer[NUM_LEDS];
-uint8_t spi_buffer[9 * NUM_LEDS];
+uint8_t spi_buffer[9 * NUM_LEDS + 1];
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -171,7 +171,10 @@ int main(void)
   MX_DMA_Init();
   MX_SPI1_Init();
   /* USER CODE BEGIN 2 */
+  LL_DMA_SetPeriphAddress(DMA2, LL_DMA_STREAM_2, LL_SPI_DMA_GetRegAddr(SPI1));
+  LL_SPI_EnableDMAReq_TX(SPI1);
   LL_SPI_Enable(SPI1);
+
   /* USER CODE END 2 */
 
   /* Infinite loop */
@@ -198,7 +201,8 @@ int main(void)
     }
 
     // urgb_buffer[76] = make_urgb(level, 0, 0);
-    urgb_buffer[76] = make_urgb(0, gamma8[level], gamma8[level]);
+    urgb_buffer[76] = make_urgb(gamma8[level], 0,gamma8[level / 3]);
+    // urgb_buffer[76] = make_urgb(level, level / 3, 0);
 
     // for (int i = 0; i < 89; i++) {
     //   uint32_t col = i == count? make_urgb(1, 0, 0) : make_urgb(0x0, 0x0, 0x0);
@@ -217,22 +221,37 @@ int main(void)
       walk += 9;
     }
 
-    for (int i = 0; i < 89 * 9; i++) {
-      while (!LL_SPI_IsActiveFlag_TXE(SPI1));
-      LL_SPI_TransmitData8(SPI1, spi_buffer[i]);
-    }
+    LL_DMA_DisableStream(DMA2, LL_DMA_STREAM_2);
+    while (LL_DMA_IsEnabledStream(DMA2, LL_DMA_STREAM_2));  // Wait for it to stop
+
+    LL_DMA_ConfigAddresses(DMA2, LL_DMA_STREAM_2, (uint32_t)spi_buffer, LL_SPI_DMA_GetRegAddr(SPI1),
+      LL_DMA_GetDataTransferDirection(DMA2, LL_DMA_STREAM_2));
+    LL_DMA_SetDataLength(DMA2, LL_DMA_STREAM_2, 9 * NUM_LEDS + 1);
+
+    // for (int i = 0; i < 89 * 9; i++) {
+    //   while (!LL_SPI_IsActiveFlag_TXE(SPI1));
+    //   LL_SPI_TransmitData8(SPI1, spi_buffer[i]);
+    // }
+
+    LL_DMA_EnableStream(DMA2, LL_DMA_STREAM_2);
 
     count += 1;
     if (count >= 89) { count = 0; }
 
     // Write extra zeroes
-    for (int i = 0; i < zeroIters; i++) {
-      while (!LL_SPI_IsActiveFlag_TXE(SPI1));
-      LL_SPI_TransmitData8(SPI1, 0x00);
-    }
+    // for (int i = 0; i < zeroIters; i++) {
+    //   while (!LL_SPI_IsActiveFlag_TXE(SPI1));
+    //   LL_SPI_TransmitData8(SPI1, 0x00);
+    // }
+    while (!LL_DMA_IsActiveFlag_TC2(DMA2));
     while (!LL_SPI_IsActiveFlag_TXE(SPI1));
     while (LL_SPI_IsActiveFlag_BSY(SPI1));
+
+    LL_DMA_ClearFlag_TC2(DMA2);
+
     LL_mDelay(1);
+
+
     
     /* USER CODE END WHILE */
 
