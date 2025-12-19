@@ -22,6 +22,7 @@
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
 #include <stdbool.h>
+#include <math.h>
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -40,6 +41,141 @@
 /* USER CODE END PM */
 
 /* Private variables ---------------------------------------------------------*/
+/* USER CODE BEGIN PV */
+
+const uint8_t small_spirals_lens[] = {5, 4, 4, 4, 4, 5, 4, 4, 5, 4, 4, 4, 4, 5, 4, 4, 5, 4, 4, 4, 4};
+const uint8_t small_spirals[][5] = {
+  {88, 87, 86, 85, 84,},
+  {80, 81, 82, 83, 0xff,},
+  {79, 78, 77, 76, 0xff,},
+  {72, 73, 74, 75, 0xff,},
+  {71, 70, 69, 68, 0xff,},
+  {63, 64, 65, 66, 67,},
+  {62, 61, 60, 59, 0xff,},
+  {55, 56, 57, 58, 0xff,},
+  {54, 53, 52, 51, 50,},
+  {46, 47, 48, 49, 0xff,},
+  {45, 44, 43, 42, 0xff,},
+  {38, 39, 40, 41, 0xff,},
+  {37, 36, 35, 34, 0xff,},
+  {29, 30, 31, 32, 33,},
+  {28, 27, 26, 25, 0xff,},
+  {21, 22, 23, 24, 0xff,},
+  {20, 19, 18, 17, 16,},
+  {12, 13, 14, 15, 0xff,},
+  {11, 10,  9,  8, 0xff,},
+  {4,  5,   6,  7, 0xff,},
+  {3,  2,   1,  0, 0xff,},
+};
+
+const uint8_t large_spirals_lens[] = {7, 7, 7, 7, 6, 7, 7, 7, 7, 6, 7, 7, 7,};
+const uint8_t large_spirals[][7] = {
+  {72, 79, 81, 86,  1,  7,  8,},
+  {80, 87,  2,  6,  9, 15, 16,},
+  {88,  3,  5, 10, 14, 17, 24,},
+  { 4, 11, 13, 18, 23, 25, 33,},
+  {12, 19, 22, 26, 32, 34, 0xff,},
+  {20, 21, 27, 31, 35, 41, 42,},
+  {28, 30, 36, 40, 43, 49, 50,},
+  {29, 37, 39, 44, 48, 51, 58,},
+  {38, 45, 47, 52, 57, 59, 67,},
+  {46, 53, 56, 60, 66, 68, 0xff,},
+  {54, 55, 61, 65, 69, 75, 76,},
+  {62, 64, 70, 74, 77, 83, 84,},
+  {63, 71, 73, 78, 82, 85,  0,},
+};
+
+const float led_positions[NUM_LEDS][2] = {
+  {-0.295600f, -0.881845f},
+  {-0.147642f, -0.769175f},
+  {-0.035599f, -0.635367f},
+  {0.038057f, -0.488029f},
+  {0.179926f, -0.394470f},
+  {0.168341f, -0.555471f},
+  {0.116204f, -0.717929f},
+  {0.023421f, -0.873812f},
+  {0.232423f, -0.936628f},
+  {0.301129f, -0.760752f},
+  {0.328102f, -0.585689f},
+  {0.315025f, -0.419325f},
+  {0.392868f, -0.255296f},
+  {0.466666f, -0.401150f},
+  {0.506617f, -0.569514f},
+  {0.508307f, -0.753704f},
+  {0.724054f, -0.689743f},
+  {0.690701f, -0.500792f},
+  {0.621962f, -0.334684f},
+  {0.523603f, -0.197011f},
+  {0.402082f, -0.092510f},
+  {0.503473f, -0.004886f},
+  {0.643665f, -0.093004f},
+  {0.766763f, -0.218189f},
+  {0.865428f, -0.377196f},
+  {0.886471f, -0.053956f},
+  {0.739284f, 0.054065f},
+  {0.581749f, 0.122011f},
+  {0.421872f, 0.149424f},
+  {0.301882f, 0.249448f},
+  {0.457132f, 0.284555f},
+  {0.624881f, 0.281390f},
+  {0.797553f, 0.237514f},
+  {0.967186f, 0.151767f},
+  {0.807515f, 0.447203f},
+  {0.622814f, 0.463278f},
+  {0.450418f, 0.439581f},
+  {0.297278f, 0.380064f},
+  {0.131620f, 0.405760f},
+  {0.248079f, 0.516986f},
+  {0.395414f, 0.602039f},
+  {0.568461f, 0.654807f},
+  {0.458040f, 0.841453f},
+  {0.289416f, 0.757803f},
+  {0.152117f, 0.646686f},
+  {0.050236f, 0.515038f},
+  {-0.115473f, 0.446860f},
+  {-0.072279f, 0.604083f},
+  {0.011016f, 0.755164f},
+  {0.133363f, 0.892186f},
+  {-0.067530f, 0.990708f},
+  {-0.169640f, 0.828974f},
+  {-0.230295f, 0.660292f},
+  {-0.249830f, 0.492731f},
+  {-0.230015f, 0.334066f},
+  {-0.362822f, 0.338933f},
+  {-0.407380f, 0.497945f},
+  {-0.414354f, 0.672862f},
+  {-0.380634f, 0.856274f},
+  {-0.612366f, 0.633545f},
+  {-0.576115f, 0.455234f},
+  {-0.505354f, 0.299452f},
+  {-0.405576f, 0.172048f},
+  {-0.384114f, 0.019641f},
+  {-0.522417f, 0.097668f},
+  {-0.644195f, 0.212445f},
+  {-0.742204f, 0.360620f},
+  {-0.809812f, 0.537627f},
+  {-0.890698f, 0.214167f},
+  {-0.765219f, 0.078460f},
+  {-0.622068f, -0.019637f},
+  {-0.469039f, -0.078271f},
+  {-0.365062f, -0.206826f},
+  {-0.525650f, -0.211043f},
+  {-0.691454f, -0.175127f},
+  {-0.854531f, -0.098069f},
+  {-0.899516f, -0.308812f},
+  {-0.718989f, -0.360257f},
+  {-0.543208f, -0.370169f},
+  {-0.379756f, -0.341152f},
+  {-0.213409f, -0.401333f},
+  {-0.350636f, -0.488605f},
+  {-0.513417f, -0.544320f},
+  {-0.695552f, -0.563401f},
+  {-0.615037f, -0.770683f},
+  {-0.431352f, -0.719810f},
+  {-0.273469f, -0.636007f},
+  {-0.146724f, -0.525350f},
+  {-0.055075f, -0.394778f},
+};
 
 const uint8_t gamma8[] = {
  0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
@@ -59,7 +195,6 @@ const uint8_t gamma8[] = {
  177,180,182,184,186,189,191,193,196,198,200,203,205,208,210,213,
  215,218,220,223,225,228,231,233,236,239,241,244,247,249,252,255 };
 
-/* USER CODE BEGIN PV */
 // Translate from 4 bit nibbles from color channels
 // into SPI neopixel bits
 // 0 -> 100
@@ -181,12 +316,10 @@ int main(void)
   /* USER CODE BEGIN WHILE */
   while (1)
   {
-    const int zeroIters = 1;
-
     static int count = 0;
 
     for (int i = 0; i < 89; i++) {
-      urgb_buffer[i] = make_urgb(0, 0, 0);
+      urgb_buffer[i] = 0;
     }
 
     static uint8_t level = 0;
@@ -200,9 +333,33 @@ int main(void)
       ascending = false;
     }
 
-    // urgb_buffer[76] = make_urgb(level, 0, 0);
-    urgb_buffer[76] = make_urgb(gamma8[level], 0,gamma8[level / 3]);
-    // urgb_buffer[76] = make_urgb(level, level / 3, 0);
+    // static int ringLevel = 0;
+    // int numSmallSpirals = sizeof(small_spirals_lens) / sizeof(small_spirals_lens[0]);
+
+    // for (int i = 0; i < small_spirals_lens[ringLevel]; i++) {
+    //   urgb_buffer[small_spirals[ringLevel][i]] = make_urgb(gamma8[level], 0,gamma8[level / 3]);
+    // }
+
+    // ringLevel += 1;
+    // if (ringLevel >= numSmallSpirals) {
+    //   ringLevel = 0;
+    // }
+
+    static int ringLevel = 0;
+    int numLargeSpirals = sizeof(large_spirals_lens) / sizeof(large_spirals_lens[0]);
+
+    for (int i = 0; i < large_spirals_lens[ringLevel]; i++) {
+      urgb_buffer[large_spirals[ringLevel][i]] = make_urgb(gamma8[level], 0,gamma8[level / 3]);
+    }
+    int level2 = (ringLevel + numLargeSpirals / 2) % numLargeSpirals;
+    for (int i = 0; i < large_spirals_lens[ringLevel]; i++) {
+      urgb_buffer[large_spirals[level2][i]] = make_urgb(gamma8[level], 0,gamma8[level / 3]);
+    }
+
+    ringLevel += 1;
+    if (ringLevel >= numLargeSpirals) {
+      ringLevel = 0;
+    }
 
     // for (int i = 0; i < 89; i++) {
     //   uint32_t col = i == count? make_urgb(1, 0, 0) : make_urgb(0x0, 0x0, 0x0);
@@ -228,31 +385,16 @@ int main(void)
       LL_DMA_GetDataTransferDirection(DMA2, LL_DMA_STREAM_2));
     LL_DMA_SetDataLength(DMA2, LL_DMA_STREAM_2, 9 * NUM_LEDS + 1);
 
-    // for (int i = 0; i < 89 * 9; i++) {
-    //   while (!LL_SPI_IsActiveFlag_TXE(SPI1));
-    //   LL_SPI_TransmitData8(SPI1, spi_buffer[i]);
-    // }
-
     LL_DMA_EnableStream(DMA2, LL_DMA_STREAM_2);
 
-    count += 1;
-    if (count >= 89) { count = 0; }
-
-    // Write extra zeroes
-    // for (int i = 0; i < zeroIters; i++) {
-    //   while (!LL_SPI_IsActiveFlag_TXE(SPI1));
-    //   LL_SPI_TransmitData8(SPI1, 0x00);
-    // }
     while (!LL_DMA_IsActiveFlag_TC2(DMA2));
     while (!LL_SPI_IsActiveFlag_TXE(SPI1));
     while (LL_SPI_IsActiveFlag_BSY(SPI1));
 
     LL_DMA_ClearFlag_TC2(DMA2);
 
-    LL_mDelay(1);
+    LL_mDelay(85);
 
-
-    
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
