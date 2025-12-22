@@ -33,6 +33,7 @@
 
 /* Private define ------------------------------------------------------------*/
 /* USER CODE BEGIN PD */
+#define SPI_BUFFER_LEN (9 * NUM_LEDS + 1)
 /* USER CODE END PD */
 
 /* Private macro -------------------------------------------------------------*/
@@ -45,7 +46,7 @@
 /* USER CODE BEGIN PV */
 
 LEDBuffer leds;
-uint8_t spi_buffer[9 * NUM_LEDS + 1];
+uint8_t spi_buffer[SPI_BUFFER_LEN];
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -55,19 +56,19 @@ static void MX_DMA_Init(void);
 static void MX_SPI1_Init(void);
 /* USER CODE BEGIN PFP */
 
-static void write_urgb_to_spi(uint32_t rgb, uint8_t *data_ptr);
+static void write_rgb_to_spi(uint32_t rgb, uint8_t *data_ptr);
 
 /* USER CODE END PFP */
 
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
 
-void write_urgb_to_spi(uint32_t rgb, uint8_t *data_ptr) {
-  uint16_t g_hi = neopixel_spi_encode_nibble_lut[(rgb >> 20) & 0xf];
-  uint16_t g_lo = neopixel_spi_encode_nibble_lut[(rgb >> 16) & 0xf];
+void write_rgb_to_spi(uint32_t rgb, uint8_t *data_ptr) {
+  uint16_t r_hi = neopixel_spi_encode_nibble_lut[(rgb >> 20) & 0xf];
+  uint16_t r_lo = neopixel_spi_encode_nibble_lut[(rgb >> 16) & 0xf];
 
-  uint16_t r_hi = neopixel_spi_encode_nibble_lut[(rgb >> 12) & 0xf];
-  uint16_t r_lo = neopixel_spi_encode_nibble_lut[(rgb >> 8) & 0xf];
+  uint16_t g_hi = neopixel_spi_encode_nibble_lut[(rgb >> 12) & 0xf];
+  uint16_t g_lo = neopixel_spi_encode_nibble_lut[(rgb >> 8) & 0xf];
 
   uint16_t b_hi = neopixel_spi_encode_nibble_lut[(rgb >> 4) & 0xf];
   uint16_t b_lo = neopixel_spi_encode_nibble_lut[(rgb >> 0) & 0xf];
@@ -139,9 +140,11 @@ int main(void)
 
     draw(leds);
 
+    apply_gamma_to_leds(leds);
+
     uint8_t *walk = spi_buffer;
-    for (int i = 0; i < 89; i++) {
-      write_urgb_to_spi(leds[i], walk);
+    for (int i = 0; i < NUM_LEDS; i++) {
+      write_rgb_to_spi(leds[i], walk);
       walk += 9;
     }
 
@@ -150,7 +153,7 @@ int main(void)
 
     LL_DMA_ConfigAddresses(DMA2, LL_DMA_STREAM_2, (uint32_t)spi_buffer, LL_SPI_DMA_GetRegAddr(SPI1),
       LL_DMA_GetDataTransferDirection(DMA2, LL_DMA_STREAM_2));
-    LL_DMA_SetDataLength(DMA2, LL_DMA_STREAM_2, 9 * NUM_LEDS + 1);
+    LL_DMA_SetDataLength(DMA2, LL_DMA_STREAM_2, SPI_BUFFER_LEN);
 
     LL_DMA_EnableStream(DMA2, LL_DMA_STREAM_2);
 

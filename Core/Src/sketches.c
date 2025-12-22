@@ -23,21 +23,42 @@ void draw(LEDBuffer leds) {
 
     float time = tickCount / 1000.0f;  // Convert to seconds
     
+    // for (int i = 0; i < NUM_LEDS; i++) {
+    //     float x = led_positions[i][0];
+    //     float y = led_positions[i][1];
+        
+    //     // Distance from center
+    //     float r = sqrtf(x*x + y*y);
+        
+    //     // Wave that expands outward
+    //     float wave = sinf(r * 8.0f - time * 1.2f);  // frequency 8, speed 3
+        
+    //     // Map [-1, 1] to [0, 1]
+    //     float brightness = (wave + 1.0f) * 0.5f;
+        
+    //     uint8_t level = (uint8_t)(brightness * 255.0f);
+    //     leds[i] = rgb(gamma8[level], gamma8[level/3], 0);
+    // }
+
     for (int i = 0; i < NUM_LEDS; i++) {
         float x = led_positions[i][0];
         float y = led_positions[i][1];
         
-        // Distance from center
-        float r = sqrtf(x*x + y*y);
+        // Get angle from center (-π to π)
+        float theta = atan2f(y, x);
         
-        // Wave that expands outward
-        float wave = sinf(r * 8.0f - time * 0.4f);  // frequency 8, speed 3
+        // // Convert to hue (0-255)
+        // // theta is -π to π, map to 0-255
+        // uint8_t base_hue = (uint8_t)(((theta + 3.14159f) / (2.0f * 3.14159f)) * 255.0f);
         
-        // Map [-1, 1] to [0, 1]
-        float brightness = (wave + 1.0f) * 0.5f;
+        // // Add time-based rotation
+        // uint8_t hue = base_hue + (uint8_t)(time * 10.0f);  // 60 units per second
+
+        float hue = fmodf((theta / 3.14159f) * 180.0f + 180.0f + time * 16.0f, 360.0f);
         
-        uint8_t level = (uint8_t)(brightness * 255.0f);
-        leds[i] = make_urgb(gamma8[level], gamma8[level/3], 0);
+        // HsvColor color = {hue, 160, 80};  // Full saturation and value
+        HsvColorF color = {hue, 0.7, 0.5};
+        leds[i] = hsvFToRgbFullSpectrum(color);
     }
 
     // for (int i = 0; i < NUM_LEDS; i++) {
