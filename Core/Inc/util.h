@@ -17,11 +17,6 @@
 #define INV_TAU    0.1591549431f
 #define EULER      2.7182818285f
 
-
-typedef struct _HsvColor {
-	uint8_t h, s, v;
-} HsvColor;
-
 typedef struct _HsvColorF {
 	float h, s, v;
 } HsvColorF;
@@ -30,8 +25,10 @@ typedef uint32_t LEDBuffer[NUM_LEDS];
 
 extern volatile uint32_t tickCount;
 
+#define NUM_SMALL_SPIRALS 21
 extern const uint8_t small_spirals_lens[];
 extern const uint8_t small_spirals[][5];
+#define NUM_LARGE_SPIRALS 13
 extern const uint8_t large_spirals_lens[];
 extern const uint8_t large_spirals[][7];
 extern const float led_positions[NUM_LEDS][2];
@@ -49,6 +46,5 @@ extern const uint16_t neopixel_spi_encode_nibble_lut[];
 uint32_t rgb(uint8_t r, uint8_t g, uint8_t b);
 void apply_gamma_to_leds(LEDBuffer buffer);
 
-uint32_t hsvToRgbFullSpectrum(HsvColor hsv);
-
 uint32_t hsvFToRgbFullSpectrum(HsvColorF hsv);
+uint32_t hsvFToRgbRainbow(HsvColorF hsv);

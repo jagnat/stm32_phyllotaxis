@@ -156,6 +156,26 @@ const uint8_t gamma8[] = {
  177,180,182,184,186,189,191,193,196,198,200,203,205,208,210,213,
  215,218,220,223,225,228,231,233,236,239,241,244,247,249,252,255 };
 
+const uint8_t gamma82[] = {
+0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,
+0,   0,   0,   0,   0,   0,   0,   0,   0,   1,   1,   1,   1,   1,   1,
+1,   1,   1,   1,   1,   1,   2,   2,   2,   2,   2,   2,   2,   2,   3,
+3,   3,   3,   3,   3,   4,   4,   4,   4,   5,   5,   5,   5,   5,   6,
+6,   6,   6,   7,   7,   7,   8,   8,   8,   9,   9,   9,   10,  10,  10,
+11,  11,  11,  12,  12,  13,  13,  13,  14,  14,  15,  15,  16,  16,  17,
+17,  18,  18,  19,  19,  20,  20,  21,  21,  22,  22,  23,  24,  24,  25,
+25,  26,  27,  27,  28,  29,  29,  30,  31,  31,  32,  33,  34,  34,  35,
+36,  37,  38,  38,  39,  40,  41,  42,  42,  43,  44,  45,  46,  47,  48,
+49,  50,  51,  52,  53,  54,  55,  56,  57,  58,  59,  60,  61,  62,  63,
+64,  65,  66,  68,  69,  70,  71,  72,  73,  75,  76,  77,  78,  80,  81,
+82,  84,  85,  86,  88,  89,  90,  92,  93,  94,  96,  97,  99,  100, 102,
+103, 105, 106, 108, 109, 111, 112, 114, 115, 117, 119, 120, 122, 124, 125,
+127, 129, 130, 132, 134, 136, 137, 139, 141, 143, 145, 146, 148, 150, 152,
+154, 156, 158, 160, 162, 164, 166, 168, 170, 172, 174, 176, 178, 180, 182,
+184, 186, 188, 191, 193, 195, 197, 199, 202, 204, 206, 209, 211, 213, 215,
+218, 220, 223, 225, 227, 230, 232, 235, 237, 240, 242, 245, 247, 250, 252,
+255};
+
 // Translate from 4 bit nibbles from color channels
 // into SPI neopixel bits
 // 0 -> 100
@@ -197,32 +217,6 @@ void apply_gamma_to_leds(LEDBuffer buffer) {
 	}
 }
 
-static inline uint16_t hsv_f(int n, uint8_t h) {
-    const int kZero = 0 << 8;
-    const int kOne  = 1 << 8;
-    const int kFour = 4 << 8;
-    const int kSix  = 6 << 8;
-    
-    int k = ((n << 8) + 6 * h) % kSix;
-    int k2 = kFour - k;
-    
-    int result = (k < k2) ? k : k2;
-    if (result < kZero) result = kZero;
-    if (result > kOne) result = kOne;
-    return result;
-}
-
-// From FastLED implementation
-uint32_t hsvToRgbFullSpectrum(HsvColor hsv) {
-	const uint16_t chroma = (hsv.v * hsv.s) / 255;
-	uint8_t r = hsv.v - ((chroma * hsv_f(5, hsv.h)) >> 8);
-	uint8_t g = hsv.v - ((chroma * hsv_f(3, hsv.h)) >> 8);
-	uint8_t b = hsv.v - ((chroma * hsv_f(1, hsv.h)) >> 8);
-
-	return rgb(r, g, b);
-}
-
-
 uint32_t hsvFToRgbFullSpectrum(HsvColorF hsv) {
 	float h = hsv.h;
 	float s = hsv.s;
@@ -247,4 +241,157 @@ uint32_t hsvFToRgbFullSpectrum(HsvColorF hsv) {
 	uint8_t b = (uint8_t)((b1 + m) * 255.0f);
 
 	return rgb(r, g, b);
+}
+
+uint32_t hsvFToRgbRainbow(HsvColorF hsv) {
+	float h = hsv.h; // 0 to 360
+	float s = hsv.s; // 0 to 1
+	float v = hsv.v; // 0 to 1
+
+	// Params from fastLED:
+	
+	// Yellow has a higher inherent brightness than any other color.
+	// Level Y1 is a moderate boost, the default.
+	// Level Y2 is a strong boost.
+	const uint8_t Y1 = 0;
+	const uint8_t Y2 = 1;
+	
+	// G2: Whether to divide all greens by two.
+	// Depends GREATLY on your particular LEDs
+	const uint8_t G2 = 0;
+	
+	// Gscale: what to scale green down by (0-255).
+	// Depends GREATLY on your particular LEDs
+	const uint8_t Gscale = 0;
+	
+	float hue_byte = (h / 360.0f) * 256.0f;
+	if (hue_byte >= 256.0f) hue_byte = 0.0f;
+	
+	int hue_int = (int)hue_byte;
+	
+	// Get the position within the current 32-unit segment (0-31)
+	float offset = (float)(hue_int & 0x1F);
+	
+	// Scale offset to 0-1 range within segment
+	float offset_norm = offset / 32.0f;
+	
+	float third = offset_norm / 3.0f;
+	float twothirds = offset_norm * 2.0f / 3.0f;
+	
+	float r, g, b;
+	
+	const float K255 = 1.0f;
+	const float K171 = 171.0f / 255.0f;  // 2/3
+	const float K170 = 170.0f / 255.0f;  // ~2/3
+	const float K85 = 85.0f / 255.0f;     // 1/3
+	
+	// Determine which of 8 color bands we're in (using top 3 bits)
+	int band = (hue_int >> 5) & 0x07;
+	
+	switch(band) {
+		case 0: // Red - Orange (000)
+			r = K255 - third;
+			g = third;
+			b = 0.0f;
+			break;
+			
+		case 1: // Orange - Yellow (001)
+			if (Y1) {
+				// Y1: moderate boost
+				r = K171;
+				g = K85 + third;
+				b = 0.0f;
+			} else if (Y2) {
+				// Y2: strong boost
+				r = K170 + third;
+				g = K85 + twothirds;
+				b = 0.0f;
+			} else {
+				// No boost - linear continuation from case 0
+				r = K255 - third;
+				g = third;
+				b = 0.0f;
+			}
+			break;
+			
+		case 2: // Yellow - Green (010)
+			if (Y1) {
+				// Y1: moderate boost
+				r = K171 - twothirds;
+				g = K170 + third;
+				b = 0.0f;
+			} else if (Y2) {
+				// Y2: strong boost
+				r = K255 - offset_norm;
+				g = K255;
+				b = 0.0f;
+			} else {
+				// No boost - linear continuation
+				r = K255 - third;
+				g = third;
+				b = 0.0f;
+			}
+			break;
+		case 3: // Green - Aqua (011)
+			r = 0.0f;
+			g = K255 - third;
+			b = third;
+			break;
+		case 4: // Aqua - Blue (100)
+			r = 0.0f;
+			g = K171 - twothirds;
+			b = K85 + twothirds;
+			break;
+		case 5: // Blue - Purple (101)
+			r = third;
+			g = 0.0f;
+			b = K255 - third;
+			break;
+		case 6: // Purple - Pink (110)
+			r = K85 + third;
+			g = 0.0f;
+			b = K171 - third;
+			break;	
+		case 7: // Pink - Red (111)
+			r = K170 + third;
+			g = 0.0f;
+			b = K85 - third;
+			break;
+	}
+	
+	// Green adjustments
+	if (G2) g = g * 0.5f;
+	if (Gscale) g = g * (Gscale / 255.0f);
+	
+	// Apply saturation
+	if (s < 1.0f) {
+		if (s == 0.0f) {
+			r = g = b = 1.0f;
+		} else {
+			float desat = 1.0f - s;
+			desat = desat * desat; // FastLED's scale8
+			
+			float satscale = 1.0f - desat;
+			
+			r = r * satscale + desat;
+			g = g * satscale + desat;
+			b = b * satscale + desat;
+		}
+	}
+	
+	// Apply value
+	if (v < 1.0f) {
+		float val_scaled = v * v;
+		r *= val_scaled;
+		g *= val_scaled;
+		b *= val_scaled;
+		// r *= v;
+		// g *= v;
+		// b *= v;
+	}
+	
+	uint8_t r8 = (uint8_t)(fminf(r * 255.0f + 0.5f, 255.0f));
+	uint8_t g8 = (uint8_t)(fminf(g * 255.0f + 0.5f, 255.0f));
+	uint8_t b8 = (uint8_t)(fminf(b * 255.0f + 0.5f, 255.0f));
+	return rgb(r8, g8, b8);
 }
