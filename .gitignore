@@ -1,3 +1,6 @@
 .DS_STORE
 build/
 *.sublime-workspace
+.cproject
+.project
+.settings/

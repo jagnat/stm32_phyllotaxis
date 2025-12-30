@@ -4,6 +4,9 @@
 
 volatile uint32_t tickCount;
 
+// volatile uint16_t audio_buffer[AUDIO_BUFFER_SIZE * 2] = {0};
+// volatile uint8_t audio_ready = 0;
+
 const uint8_t small_spirals_lens[] = {5, 4, 4, 4, 4, 5, 4, 4, 5, 4, 4, 4, 4, 5, 4, 4, 5, 4, 4, 4, 4};
 const uint8_t small_spirals[][5] = {
 	{88, 87, 86, 85, 84,},
@@ -200,8 +203,30 @@ const uint16_t neopixel_spi_encode_nibble_lut[] = {
 	06666, // F
 };
 
+ButtonState button;
+
 uint32_t rgb(uint8_t r, uint8_t g, uint8_t b) {
 	return ((uint32_t) (r) << 16) | ((uint32_t) (g) << 8) | (uint32_t) (b);
+}
+
+uint32_t lerp_rgb(uint32_t c1, uint32_t c2, float t) {
+	if (t < 0.0f) t = 0.0f;
+	if (t > 1.0f) t = 1.0f;
+	
+	uint8_t r1 = (c1 >> 16) & 0xFF;
+	uint8_t g1 = (c1 >> 8) & 0xFF;
+	uint8_t b1 = c1 & 0xFF;
+	
+	uint8_t r2 = (c2 >> 16) & 0xFF;
+	uint8_t g2 = (c2 >> 8) & 0xFF;
+	uint8_t b2 = c2 & 0xFF;
+
+	// interpolate
+	uint8_t r = (uint8_t)(r1 + (r2 - r1) * t);
+	uint8_t g = (uint8_t)(g1 + (g2 - g1) * t);
+	uint8_t b = (uint8_t)(b1 + (b2 - b1) * t);
+	
+	return ((uint32_t)r << 16) | ((uint32_t)g << 8) | (uint32_t)b;
 }
 
 static uint32_t apply_gamma_to_led(uint32_t urgb) {
@@ -394,4 +419,37 @@ uint32_t hsvFToRgbRainbow(HsvColorF hsv) {
 	uint8_t g8 = (uint8_t)(fminf(g * 255.0f + 0.5f, 255.0f));
 	uint8_t b8 = (uint8_t)(fminf(b * 255.0f + 0.5f, 255.0f));
 	return rgb(r8, g8, b8);
+}
+
+void button_update(ButtonState *btn, GPIO_TypeDef *port, uint32_t pin) {
+	// Read pin (inverted for pull-up: 0 = pressed)
+	uint8_t raw_state = !LL_GPIO_IsInputPinSet(port, pin);
+	
+	btn->pressed = 0;
+	btn->released = 0;
+	
+	// Detect raw state change - start debounce timer
+	if (raw_state != btn->last_raw_state) {
+		btn->last_change_time = tickCount;
+	}
+	btn->last_raw_state = raw_state;
+	
+	// After debounce period, commit the state change
+	if ((tickCount - btn->last_change_time) > DEBOUNCE_MS) {
+		// Rising edge (button pressed)
+		if (raw_state && !btn->state) {
+			btn->pressed = 1;
+			btn->state = 1;
+			btn->time_since_last_state_change = 0;
+		} 
+		// Falling edge (button released)
+		else if (!raw_state && btn->state) {
+			btn->released = 1;
+			btn->state = 0;
+			btn->time_since_last_state_change = 0;
+		}
+	}
+	
+	// Increment time since last stable state change
+	btn->time_since_last_state_change++;
 }

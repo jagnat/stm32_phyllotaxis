@@ -22,9 +22,11 @@
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
 #include "util.h"
+#include "audio.h"
 #include "sketches.h"
 #include <stdbool.h>
 #include <math.h>
+#include "arm_math.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -42,8 +44,8 @@
 /* USER CODE END PM */
 
 /* Private variables ---------------------------------------------------------*/
-I2S_HandleTypeDef hi2s3;
-DMA_HandleTypeDef hdma_spi3_rx;
+I2S_HandleTypeDef hi2s2;
+DMA_HandleTypeDef hdma_spi2_rx;
 
 /* USER CODE BEGIN PV */
 
@@ -57,7 +59,7 @@ void PeriphCommonClock_Config(void);
 static void MX_GPIO_Init(void);
 static void MX_DMA_Init(void);
 static void MX_SPI1_Init(void);
-static void MX_I2S3_Init(void);
+static void MX_I2S2_Init(void);
 /* USER CODE BEGIN PFP */
 
 static void write_rgb_to_spi(uint32_t rgb, uint8_t *data_ptr);
@@ -126,11 +128,15 @@ int main(void)
   MX_GPIO_Init();
   MX_DMA_Init();
   MX_SPI1_Init();
-  MX_I2S3_Init();
+  MX_I2S2_Init();
   /* USER CODE BEGIN 2 */
   LL_DMA_SetPeriphAddress(DMA2, LL_DMA_STREAM_2, LL_SPI_DMA_GetRegAddr(SPI1));
   LL_SPI_EnableDMAReq_TX(SPI1);
   LL_SPI_Enable(SPI1);
+
+  HAL_I2S_Receive_DMA(&hi2s2, (uint16_t*)rx_buffer, AUDIO_BUFFER_SIZE);
+
+  LL_mDelay(20);
 
   /* USER CODE END 2 */
 
@@ -138,6 +144,9 @@ int main(void)
   /* USER CODE BEGIN WHILE */
   while (1)
   {
+    button_update(&button, BUTTON_GPIO_Port, BUTTON_Pin);
+
+    process_audio();
 
     draw(leds);
 
@@ -239,36 +248,36 @@ void PeriphCommonClock_Config(void)
 }
 
 /**
-  * @brief I2S3 Initialization Function
+  * @brief I2S2 Initialization Function
   * @param None
   * @retval None
   */
-static void MX_I2S3_Init(void)
+static void MX_I2S2_Init(void)
 {
 
-  /* USER CODE BEGIN I2S3_Init 0 */
+  /* USER CODE BEGIN I2S2_Init 0 */
 
-  /* USER CODE END I2S3_Init 0 */
+  /* USER CODE END I2S2_Init 0 */
 
-  /* USER CODE BEGIN I2S3_Init 1 */
+  /* USER CODE BEGIN I2S2_Init 1 */
 
-  /* USER CODE END I2S3_Init 1 */
-  hi2s3.Instance = SPI3;
-  hi2s3.Init.Mode = I2S_MODE_MASTER_RX;
-  hi2s3.Init.Standard = I2S_STANDARD_PHILIPS;
-  hi2s3.Init.DataFormat = I2S_DATAFORMAT_24B;
-  hi2s3.Init.MCLKOutput = I2S_MCLKOUTPUT_DISABLE;
-  hi2s3.Init.AudioFreq = I2S_AUDIOFREQ_16K;
-  hi2s3.Init.CPOL = I2S_CPOL_LOW;
-  hi2s3.Init.ClockSource = I2S_CLOCK_PLL;
-  hi2s3.Init.FullDuplexMode = I2S_FULLDUPLEXMODE_DISABLE;
-  if (HAL_I2S_Init(&hi2s3) != HAL_OK)
+  /* USER CODE END I2S2_Init 1 */
+  hi2s2.Instance = SPI2;
+  hi2s2.Init.Mode = I2S_MODE_MASTER_RX;
+  hi2s2.Init.Standard = I2S_STANDARD_PHILIPS;
+  hi2s2.Init.DataFormat = I2S_DATAFORMAT_24B;
+  hi2s2.Init.MCLKOutput = I2S_MCLKOUTPUT_DISABLE;
+  hi2s2.Init.AudioFreq = I2S_AUDIOFREQ_32K;
+  hi2s2.Init.CPOL = I2S_CPOL_HIGH;
+  hi2s2.Init.ClockSource = I2S_CLOCK_PLL;
+  hi2s2.Init.FullDuplexMode = I2S_FULLDUPLEXMODE_DISABLE;
+  if (HAL_I2S_Init(&hi2s2) != HAL_OK)
   {
     Error_Handler();
   }
-  /* USER CODE BEGIN I2S3_Init 2 */
+  /* USER CODE BEGIN I2S2_Init 2 */
 
-  /* USER CODE END I2S3_Init 2 */
+  /* USER CODE END I2S2_Init 2 */
 
 }
 
@@ -359,9 +368,9 @@ static void MX_DMA_Init(void)
   LL_AHB1_GRP1_EnableClock(LL_AHB1_GRP1_PERIPH_DMA1);
 
   /* DMA interrupt init */
-  /* DMA1_Stream0_IRQn interrupt configuration */
-  HAL_NVIC_SetPriority(DMA1_Stream0_IRQn, 0, 0);
-  HAL_NVIC_EnableIRQ(DMA1_Stream0_IRQn);
+  /* DMA1_Stream3_IRQn interrupt configuration */
+  HAL_NVIC_SetPriority(DMA1_Stream3_IRQn, 0, 0);
+  HAL_NVIC_EnableIRQ(DMA1_Stream3_IRQn);
   /* DMA2_Stream2_IRQn interrupt configuration */
   NVIC_SetPriority(DMA2_Stream2_IRQn, NVIC_EncodePriority(NVIC_GetPriorityGrouping(),0, 0));
   NVIC_EnableIRQ(DMA2_Stream2_IRQn);
@@ -397,12 +406,30 @@ static void MX_GPIO_Init(void)
   GPIO_InitStruct.Pull = LL_GPIO_PULL_NO;
   LL_GPIO_Init(LED_GPIO_Port, &GPIO_InitStruct);
 
+  /**/
+  GPIO_InitStruct.Pin = BUTTON_Pin;
+  GPIO_InitStruct.Mode = LL_GPIO_MODE_INPUT;
+  GPIO_InitStruct.Pull = LL_GPIO_PULL_UP;
+  LL_GPIO_Init(BUTTON_GPIO_Port, &GPIO_InitStruct);
+
   /* USER CODE BEGIN MX_GPIO_Init_2 */
   LL_GPIO_SetOutputPin(LED_GPIO_Port, LED_Pin);
   /* USER CODE END MX_GPIO_Init_2 */
 }
 
 /* USER CODE BEGIN 4 */
+
+void HAL_I2S_RxHalfCpltCallback(I2S_HandleTypeDef *hi2s) {
+  __disable_irq();
+  write_half_audio_buffer(rx_buffer, 0);
+  __enable_irq();
+}
+
+void HAL_I2S_RxCpltCallback(I2S_HandleTypeDef *hi2s) {
+  __disable_irq();
+  write_half_audio_buffer(&rx_buffer[AUDIO_BUFFER_SIZE / 2], 1);
+  __enable_irq();
+}
 
 /* USER CODE END 4 */
 
@@ -434,6 +461,7 @@ void assert_failed(uint8_t *file, uint32_t line)
   /* USER CODE BEGIN 6 */
   /* User can add his own implementation to report the file name and line number,
      ex: printf("Wrong parameters value: file %s on line %d\r\n", file, line) */
+  LL_GPIO_ResetOutputPin(LED_GPIO_Port, LED_Pin);
   /* USER CODE END 6 */
 }
 #endif /* USE_FULL_ASSERT */

@@ -69,6 +69,8 @@ void increment_tick();
 /* Private defines -----------------------------------------------------------*/
 #define LED_Pin LL_GPIO_PIN_13
 #define LED_GPIO_Port GPIOC
+#define BUTTON_Pin LL_GPIO_PIN_1
+#define BUTTON_GPIO_Port GPIOB
 
 /* USER CODE BEGIN Private defines */
 

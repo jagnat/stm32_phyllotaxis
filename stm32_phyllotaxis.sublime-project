@@ -16,6 +16,11 @@
 			"name": "Flash",
 			"working_dir": "${project_path}",
 			"shell_cmd": "st-flash --reset write build/stm32_phyllotaxis.bin 0x8000000"
+		},
+		{
+			"name": "Build n Flash",
+			"working_dir": "${project_path}",
+			"shell_cmd": "make && st-flash --reset write build/stm32_phyllotaxis.bin 0x8000000"
 		}
 	]
 }
