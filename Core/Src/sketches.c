@@ -29,14 +29,12 @@ uint32_t get_warm_palette(float angle) {
 	}
 }
 
-#define NUM_GLINT_COLORS 6
+#define NUM_GLINT_COLORS 4
 static uint32_t glint_colors[NUM_GLINT_COLORS] = {
 	0x0000BE00,
 	0x000000BE,
-	0x00000000,
-	0x00000000,
-	0x00000000,
-	0x00000000,
+	0x00008C8C,
+	0x008C8C00,
 };
 
 void organic_vibe_system(LEDBuffer leds) {
@@ -47,6 +45,11 @@ void organic_vibe_system(LEDBuffer leds) {
 
 	static float glint_level = 0.f;
 	static float glint_phase = 0;
+
+	static int glint_color_idx = 0;
+	static int last_glint_color_idx = 0;
+
+	static float ambient_phase = 0;
 
 	// Logic: State Machine "Director"
 	state_switch_timer += secondsDiff;
@@ -61,15 +64,18 @@ void organic_vibe_system(LEDBuffer leds) {
 	color_phase += secondsDiff * 0.1f * rot_dir;
 	color_phase = fmod(color_phase, TAU);
 	if (color_phase < 0) color_phase += TAU;
+	ambient_phase += secondsDiff * 0.04f; // Very slow drift
 
 	// float hi_transient = fmax(band_magnitudes[7], fmax(band_magnitudes[6], fmax(band_magnitudes[5], band_magnitudes[4])));
-	float hi_transient = band_transients[7];
+	float hi_transient = fmax(band_transients[7], band_transients[6]);
 
 	if (hi_transient > 0.01 && hi_transient > glint_level) {
 		glint_level = hi_transient;
 		if (glint_level > 0.5) {
 			glint_level = 0.5;
 		}
+		last_glint_color_idx = glint_color_idx;
+		glint_color_idx = rand() % NUM_GLINT_COLORS;
 	} else {
 		glint_level = glint_level * 0.985f;
 		// glint_level = glint_level * 0.9999;
@@ -85,6 +91,15 @@ void organic_vibe_system(LEDBuffer leds) {
 		float r = sqrtf(x*x + y*y);
 		float theta = atan2f(y, x);
 
+		// --- LAYER 0: THE SHELL SKELETON (Ambient) ---
+		// Using your 4 * Golden Angle math
+		float theta_rotating = theta + ambient_phase;
+		float twist_factor = 4.0f * 2.39996f;
+		float warped_theta = theta_rotating - r * twist_factor;
+		// We use a high power (powf) to make the 'arms' thinner/sharper
+		float shell_wave = (sinf(7.0f * warped_theta) + 1.0f) * 0.5f;
+		shell_wave = powf(shell_wave, 3.0f); // Sharpen the shell lines
+
 		// --- LAYER 1: THE BASE (Angular Drift) ---
 		uint32_t base_color = get_warm_palette(theta + color_phase);
 		
@@ -92,6 +107,15 @@ void organic_vibe_system(LEDBuffer leds) {
 		// We use r and band_smooth_slow[1] (Low mids) to create "breathing"
 		float wave = sinf(r * 12.0f - global_phase * 2.0f);
 		float pulse_intensity = (wave + 1.0f) * 0.5f * (0.3f + band_smooth_slow[1]);
+		// Scale base color by pulse intensity
+		uint32_t final_c = lerp_rgb(rgb(20,0,0), base_color, pulse_intensity);
+
+		// incorporate shell
+		//Double lerp so less pulse intense areas are red
+		uint32_t shell_color = lerp_rgb(rgb(100, 80, 0), rgb(0, 80, 20), pulse_intensity);
+		shell_color = lerp_rgb(rgb(0, 0, 0), shell_color, band_smooth_slow[2]);
+		shell_color = lerp_rgb(rgb(0,0,0), shell_color, shell_wave);
+		final_c = add_rgb(shell_color, final_c);
 
 		// --- LAYER 3: THE SPIRAL GLINT (High Freq) ---
 		// This uses the Golden Angle logic you had in biggest_spirals
@@ -100,16 +124,20 @@ void organic_vibe_system(LEDBuffer leds) {
 		float glint_sin = sinf(spiral_theta * 4.0f + glint_phase * 4.0f);
 		float glint = (glint_sin > 0.9f) ? glint_level : 0;
 
-		// --- COMPOSITION ---
-		// Scale base color by pulse intensity
-		uint32_t final_c = lerp_rgb(rgb(20,0,0), base_color, pulse_intensity);
-		
-		// Additively blend the white/cyan glint for treble
-		if (glint > 0.04f) {
-			int col_idx = rand() % NUM_GLINT_COLORS;
-			uint32_t glint_color = lerp_rgb(0, glint_colors[0], glint);
-			// uint32_t glint_color = rgb(0, 0, 255);
-			final_c = add_rgb(final_c, glint_color); // You'll need to add add_rgb to util
+		if (glint_level > 0.04f) {
+		    // Create a "stipple" pattern that changes based on the current glint event
+		    // Using (i + last_glint_color_idx) ensures the 'random' spots change every hit
+		    float noise = sinf((float)i * 1.618f + last_glint_color_idx); 
+		    
+		    if (noise > 0.9f) { // Only affect ~10% of pixels
+		        // Masking: Only show in the dark parts of the pulse
+		        // We use (1.0 - pulse_intensity) to find the "valleys"
+		        float masking = powf(1.0f - pulse_intensity, 3.0f);
+		        
+		        float brightness = glint_level * masking;
+		        uint32_t col = lerp_rgb(0, glint_colors[glint_color_idx], brightness);
+		        final_c = add_rgb(final_c, col);
+		    }
 		}
 
 		leds[i] = final_c;
@@ -231,15 +259,13 @@ void biggest_spirals(LEDBuffer leds) {
 		float theta = atan2f(y, x);
 
 		float theta_rotating = theta + seconds * 0.2f;
-		float twist_factor = 2.39996f;
+		float twist_factor = 4 * 2.39996f;
 		// twist_factor = -twist_factor / 2;
 		float warped_theta = theta_rotating - r * twist_factor;
 
 		float val = ((sinf(7 * warped_theta) + 1.f) / 2.f);
-		// val = val * val * val * val * val * val * val * val; //^8
-		// val = val * val * val * val;
 
-		float col = lerp_rgb(rgb(40, 0, 40), rgb(255, 0, 0), val);
+		float col = lerp_rgb(rgb(0, 0, 0), rgb(0, 40, 0), val);
 		leds[i] = col;
 	}
 }
