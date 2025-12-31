@@ -19,8 +19,9 @@ typedef struct {
 
 #define NUM_PALETTES 4
 const Palette palettes[NUM_PALETTES] = {
-	{RGB(180, 5, 0), RGB(255, 90, 0), RGB(255, 180, 0)},
-	{RGB(255, 0, 20), RGB(200, 140, 0), RGB(220, 220, 100)},
+	// {RGB(180, 5, 0), RGB(255, 90, 0), RGB(255, 180, 0)},
+	{RGB(220, 20, 0), RGB(255, 120, 20), RGB(255, 210, 60)},
+	{RGB(255, 0, 75), RGB(200, 140, 0), RGB(220, 220, 100)},
 	{RGB(255, 90, 0), RGB(200, 255, 0), RGB(100, 200, 140)},
 	{RGB(205, 0, 90), RGB(255, 140, 0), RGB(220, 120, 180)},
 };
@@ -75,13 +76,17 @@ int next_palette(int current_palette) {
 	return next_palette;
 }
 
-#define NUM_GLINT_COLORS 5
+#define NUM_GLINT_COLORS 9
 static uint32_t glint_colors[NUM_GLINT_COLORS] = {
-	0x0000BE00,
-	0x000044BE,
-	0x00008C8C,
-	0x008C8C00,
-	0x006e8C6e,
+	RGB(40, 200, 90),
+	RGB(0, 99, 190),
+	RGB(0, 140, 140),
+	RGB(140, 140, 0),
+	RGB(110, 140, 110),
+	RGB(200, 150, 255),
+	RGB(150, 230, 255),
+	RGB(255, 200, 150),
+	RGB(255, 255, 200),
 };
 
 void organic_vibe_system(LEDBuffer leds) {
@@ -95,6 +100,7 @@ void organic_vibe_system(LEDBuffer leds) {
 
 	static int glint_color_idx = 0;
 	static int last_glint_color_idx = 0;
+	static float glint_seed;
 
 	static float ambient_phase = 0;
 	static Palette current_palette = palettes[0];
@@ -178,6 +184,7 @@ void organic_vibe_system(LEDBuffer leds) {
 		}
 		last_glint_color_idx = glint_color_idx;
 		glint_color_idx = rand() % NUM_GLINT_COLORS;
+		glint_seed = (float)(rand() % 1000) * 0.1337f;
 	} else {
 		glint_level = glint_level * 0.99f;
 	}
@@ -202,6 +209,7 @@ void organic_vibe_system(LEDBuffer leds) {
 
 		// --- LAYER 1: THE BASE (Angular Drift) ---
 		uint32_t base_color = get_palette(theta + color_phase, current_palette);
+		// uint32_t base_color = get_palette(theta + color_phase, palettes[1]);
 		
 		// --- LAYER 2: THE PULSE (Radial) ---
 		// We use r and band_smooth_slow[1] (Low mids) to create "breathing"
@@ -227,9 +235,9 @@ void organic_vibe_system(LEDBuffer leds) {
 		if (glint_level > 0.04f) {
 			// Create a "stipple" pattern that changes based on the current glint event
 			// Using (i + last_glint_color_idx) ensures the 'random' spots change every hit
-			float noise = sinf((float)i * 1.618f + last_glint_color_idx); 
+			float noise = sinf((float)i * 1.618f + glint_seed); 
 			
-			if (noise > 0.95f) { // Only affect ~10% of pixels
+			if (noise > 0.96f) { // Only affect ~10% of pixels
 				// Masking: Only show in the dark parts of the pulse
 				// We use (1.0 - pulse_intensity) to find the "valleys"
 				float masking = powf(1.0f - pulse_intensity, 3.0f);
