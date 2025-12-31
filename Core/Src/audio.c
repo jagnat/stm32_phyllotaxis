@@ -224,7 +224,7 @@ void process_audio() {
 		const float SQUELCH_THRESHOLD = 0.015f;
 		if (recent_global_max < SQUELCH_THRESHOLD) {
 			float squelch_factor = recent_global_max / SQUELCH_THRESHOLD;
-			normalized = squelch_factor * squelch_factor;
+			normalized *= (squelch_factor * squelch_factor);
 		}
 
 		const float FAST_ACCUM = 0.6f;

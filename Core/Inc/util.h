@@ -64,6 +64,7 @@ extern ButtonState button;
 // Starting from MSB
 extern const uint16_t neopixel_spi_encode_nibble_lut[];
 
+#define RGB(r, g, b) (((uint32_t) (r) << 16) | ((uint32_t) (g) << 8) | (uint32_t) (b))
 uint32_t rgb(uint8_t r, uint8_t g, uint8_t b);
 uint32_t lerp_rgb(uint32_t c1, uint32_t c2, float t);
 uint32_t add_rgb(uint32_t c1, uint32_t c2);
