@@ -226,7 +226,20 @@ uint32_t lerp_rgb(uint32_t c1, uint32_t c2, float t) {
 	uint8_t g = (uint8_t)(g1 + (g2 - g1) * t);
 	uint8_t b = (uint8_t)(b1 + (b2 - b1) * t);
 	
-	return ((uint32_t)r << 16) | ((uint32_t)g << 8) | (uint32_t)b;
+	return rgb(r, g, b);
+}
+
+// Linear Dodge
+uint32_t add_rgb(uint32_t c1, uint32_t c2) {
+	uint16_t r = ((c1 >> 16) & 0xFF) + ((c2 >> 16) & 0xFF);
+	uint16_t g = ((c1 >> 8) & 0xFF) + ((c2 >> 8) & 0xFF);
+	uint16_t b = (c1 & 0xFF) + (c2 & 0xFF);
+
+	if (r > 255) r = 255;
+	if (g > 255) g = 255;
+	if (b > 255) b = 255;
+
+	return rgb(r, g, b);
 }
 
 static uint32_t apply_gamma_to_led(uint32_t urgb) {
@@ -240,6 +253,14 @@ void apply_gamma_to_leds(LEDBuffer buffer) {
 	for (int i = 0; i < NUM_LEDS; i++) {
 		buffer[i] = apply_gamma_to_led(buffer[i]);
 	}
+}
+
+HsvColorF lerp_hsv(HsvColorF c1, HsvColorF c2, float t) {
+	return (HsvColorF){
+		c1.h + (c2.h - c1.h) * t,
+		c1.s + (c2.s - c1.s) * t,
+		c1.v + (c2.v - c1.v) * t
+	};
 }
 
 uint32_t hsvFToRgbFullSpectrum(HsvColorF hsv) {
@@ -303,7 +324,7 @@ uint32_t hsvFToRgbRainbow(HsvColorF hsv) {
 	float third = offset_norm / 3.0f;
 	float twothirds = offset_norm * 2.0f / 3.0f;
 	
-	float r, g, b;
+	float r = 0, g = 0, b = 0;
 	
 	const float K255 = 1.0f;
 	const float K171 = 171.0f / 255.0f;  // 2/3
@@ -410,9 +431,6 @@ uint32_t hsvFToRgbRainbow(HsvColorF hsv) {
 		r *= val_scaled;
 		g *= val_scaled;
 		b *= val_scaled;
-		// r *= v;
-		// g *= v;
-		// b *= v;
 	}
 	
 	uint8_t r8 = (uint8_t)(fminf(r * 255.0f + 0.5f, 255.0f));
@@ -452,4 +470,24 @@ void button_update(ButtonState *btn, GPIO_TypeDef *port, uint32_t pin) {
 	
 	// Increment time since last stable state change
 	btn->time_since_last_state_change++;
+}
+
+uint8_t led_to_small_id[NUM_LEDS];
+uint8_t led_to_large_id[NUM_LEDS];
+
+void init_spiral_maps() {
+	// Large Spirals
+	for (int s = 0; s < 13; s++) {
+		for (int j = 0; j < large_spirals_lens[s]; j++) {
+			uint8_t led_idx = large_spirals[s][j];
+			if (led_idx < NUM_LEDS) led_to_large_id[led_idx] = s;
+		}
+	}
+	// Small Spirals
+	for (int s = 0; s < 21; s++) {
+		for (int j = 0; j < small_spirals_lens[s]; j++) {
+			uint8_t led_idx = small_spirals[s][j];
+			if (led_idx < NUM_LEDS) led_to_small_id[led_idx] = s;
+		}
+	}
 }

@@ -17,7 +17,7 @@ volatile uint8_t audio_buffer_ready = 0xff;
 arm_rfft_instance_q31 q31_fft;
 
 // Temp - for debugging
-volatile uint16_t half_rx_buffer[AUDIO_BUFFER_SIZE];
+// volatile uint16_t half_rx_buffer[AUDIO_BUFFER_SIZE];
 
 // Complex numbers
 float fft_input[FFT_SIZE * 2];
@@ -26,6 +26,12 @@ float fft_input[FFT_SIZE * 2];
 float fft_output[FFT_SIZE / 2];
 
 float band_magnitudes[NUM_FFT_BANDS];
+float band_smooth_fast[NUM_FFT_BANDS];
+float band_smooth_slow[NUM_FFT_BANDS];
+float band_transients[NUM_FFT_BANDS];
+
+static float band_maxes[NUM_FFT_BANDS];
+static float recent_global_max = 0.001f;
 
 static const float f32_hamming_window_512[512] = {
 	0.080000000f, 0.080034773f, 0.080139086f, 0.080312924f, 0.080556260f, 0.080869058f, 0.081251271f, 0.081702840f, 
@@ -107,9 +113,9 @@ const uint16_t band_edges[NUM_FFT_BANDS + 1] = {
 };
 
 void write_half_audio_buffer(volatile uint16_t *rx_buffer_start, int buffer_idx) {
-	for (int i = 0; i < AUDIO_BUFFER_SIZE; i++) {
-		half_rx_buffer[i] = rx_buffer_start[i];
-	}
+	// for (int i = 0; i < AUDIO_BUFFER_SIZE; i++) {
+	// 	half_rx_buffer[i] = rx_buffer_start[i];
+	// }
 	for (int i = 0; i < AUDIO_SAMPLES_HALF; i++) {
 		// Index for left channel: skip right channel (4 halfwords per stereo frame)
 		uint16_t hi = rx_buffer_start[4 * i];      // High 16 bits of 24-bit sample (0xFFFC)
@@ -126,7 +132,9 @@ void write_half_audio_buffer(volatile uint16_t *rx_buffer_start, int buffer_idx)
 }
 
 void init_audio() {
-
+	for (int i = 0; i < NUM_FFT_BANDS; i++) {
+		band_maxes[i] = 0.001f;
+	}
 }
 
 void process_audio() {
@@ -142,22 +150,16 @@ void process_audio() {
 		int32_t sample_24bit = audio_buffer[buffer_idx][i];
 		float sample = (float)sample_24bit / 8388608.0f;
 
-		fft_input[i * 2] = sample * f32_hamming_window_512[i];
-		
 		// Apply window and store as complex (real, imaginary)
-		// arm_mult_q31(&sample_q31, &hamming_window[i], &fft_input[i * 2], 1);
+		fft_input[i * 2] = sample * f32_hamming_window_512[i];
 
 		fft_input[i * 2 + 1] = 0; // Zero imaginary part
 	}
 
 	// In place FFT
-	// arm_cfft_q31(&arm_cfft_sR_q31_len512, fft_input, 0, 1);
-
 	arm_cfft_f32(&arm_cfft_sR_f32_len512, fft_input, 0, 1);
 
 	// FFT conjugate symmetry, we only need to get magnitude of first half
-	// arm_cmplx_mag_q31(fft_input, fft_output, FFT_SIZE / 2);
-
 	arm_cmplx_mag_f32(fft_input, fft_output, FFT_SIZE / 2);
 
 	// Avg linear bins into logarithmic bands
@@ -171,5 +173,76 @@ void process_audio() {
 
 		float avg = sum / count;
 		band_magnitudes[band] = (avg > 1.f) ? 1.f : avg;
+	}
+
+	// Band energy normalization; automatic gain control
+
+	float current_global_max = 0;
+	for (int band = 0; band < NUM_FFT_BANDS; band++) {
+		if (band_magnitudes[band] > current_global_max) {
+			current_global_max = band_magnitudes[band];
+		}
+	}
+
+	if (current_global_max > recent_global_max) {
+		recent_global_max = current_global_max;
+	} else {
+		recent_global_max *= 0.995f;
+	}
+	if (recent_global_max < 0.01f) {
+		recent_global_max = 0.01f;
+	}
+
+	for (int band = 0; band < NUM_FFT_BANDS; band++) {
+		float energy = band_magnitudes[band];
+
+		const float NOISE_FLOOR = 0.005f;  // Tune this (0.01-0.05)
+		if (energy < NOISE_FLOOR) {
+			energy = 0.0f;
+		}
+
+		if (energy > band_maxes[band]) {
+			band_maxes[band] = energy;
+		} else {
+			band_maxes[band] *= 0.995f;
+		}
+
+		if (band_maxes[band] < 0.001f) {
+			band_maxes[band] = 0.001f;
+		}
+
+		float global_normalized = energy / recent_global_max;
+		float band_normalized = energy / band_maxes[band];
+
+		const float NORM_GLOBAL_FACTOR = 0.4f;
+		float normalized = NORM_GLOBAL_FACTOR * global_normalized + (1 - NORM_GLOBAL_FACTOR) * band_normalized;
+
+		if (normalized > 1.f) {
+			normalized = 1.f;
+		}
+
+		const float SQUELCH_THRESHOLD = 0.015f;
+		if (recent_global_max < SQUELCH_THRESHOLD) {
+			float squelch_factor = recent_global_max / SQUELCH_THRESHOLD;
+			normalized = squelch_factor * squelch_factor;
+		}
+
+		const float FAST_ACCUM = 0.6f;
+		const float SLOW_ACCUM = 0.94f;
+
+		band_magnitudes[band] = normalized;
+		band_smooth_fast[band] = band_smooth_fast[band] * FAST_ACCUM + normalized * (1 - FAST_ACCUM);
+		band_smooth_slow[band] = band_smooth_slow[band] * SLOW_ACCUM + normalized * (1 - SLOW_ACCUM);
+
+		float delta = normalized - band_smooth_fast[band];
+		if (delta > 0.0f) {
+			band_transients[band] = delta;
+		} else {
+			band_transients[band] *= 0.7f;
+		}
+
+		if (band_transients[band] < 0.001f) {
+			band_transients[band] = 0.001f;
+		}
 	}
 }

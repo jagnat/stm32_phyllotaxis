@@ -136,6 +136,9 @@ int main(void)
 
   HAL_I2S_Receive_DMA(&hi2s2, (uint16_t*)rx_buffer, AUDIO_BUFFER_SIZE);
 
+  init_audio();
+  init_spiral_maps();
+
   LL_mDelay(20);
 
   /* USER CODE END 2 */

@@ -25,9 +25,11 @@ extern volatile uint8_t audio_buffer_ready;
 
 extern float fft_output[FFT_SIZE / 2];
 extern float band_magnitudes[NUM_FFT_BANDS];
-
-void init_audio();
-
-void process_audio();
+extern float band_smooth_fast[NUM_FFT_BANDS];
+extern float band_smooth_slow[NUM_FFT_BANDS];
+extern float band_transients[NUM_FFT_BANDS];
 
 void write_half_audio_buffer(volatile uint16_t *rx_buffer_start, int buffer_idx);
+
+void init_audio();
+void process_audio();

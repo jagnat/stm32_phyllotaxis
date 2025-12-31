@@ -46,6 +46,10 @@ extern const uint8_t small_spirals[][5];
 #define NUM_LARGE_SPIRALS 13
 extern const uint8_t large_spirals_lens[];
 extern const uint8_t large_spirals[][7];
+extern uint8_t led_to_small_id[NUM_LEDS];
+extern uint8_t led_to_large_id[NUM_LEDS];
+
+
 extern const float led_positions[NUM_LEDS][2];
 
 // Adafruit gamma LUT
@@ -62,9 +66,13 @@ extern const uint16_t neopixel_spi_encode_nibble_lut[];
 
 uint32_t rgb(uint8_t r, uint8_t g, uint8_t b);
 uint32_t lerp_rgb(uint32_t c1, uint32_t c2, float t);
+uint32_t add_rgb(uint32_t c1, uint32_t c2);
 void apply_gamma_to_leds(LEDBuffer buffer);
 
+HsvColorF lerp_hsv(HsvColorF c1, HsvColorF c2, float t);
 uint32_t hsvFToRgbFullSpectrum(HsvColorF hsv);
 uint32_t hsvFToRgbRainbow(HsvColorF hsv);
 
 void button_update(ButtonState *btn, GPIO_TypeDef *port, uint32_t pin);
+
+void init_spiral_maps();
