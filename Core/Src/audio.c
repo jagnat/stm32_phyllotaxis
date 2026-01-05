@@ -14,7 +14,7 @@ int32_t audio_buffer[2][AUDIO_SAMPLES_HALF];
 // 0 or 1 written by producer
 volatile uint8_t audio_buffer_ready = 0xff;
 
-arm_rfft_instance_q31 q31_fft;
+// arm_rfft_instance_q31 q31_fft;
 
 // Temp - for debugging
 // volatile uint16_t half_rx_buffer[AUDIO_BUFFER_SIZE];
@@ -196,7 +196,7 @@ void process_audio() {
 	for (int band = 0; band < NUM_FFT_BANDS; band++) {
 		float energy = band_magnitudes[band];
 
-		const float NOISE_FLOOR = 0.005f;  // Tune this (0.01-0.05)
+		const float NOISE_FLOOR = 0.005f;
 		if (energy < NOISE_FLOOR) {
 			energy = 0.0f;
 		}

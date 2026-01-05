@@ -11,8 +11,6 @@ static float lastSeconds;
 static float seconds;
 static float secondsDiff;
 
-typedef void (*Sketch)(LEDBuffer);
-
 typedef struct {
 	uint32_t c1, c2, c3;
 } Palette;
@@ -26,40 +24,22 @@ const Palette palettes[NUM_PALETTES] = {
 	{RGB(205, 0, 90), RGB(255, 140, 0), RGB(220, 120, 180)},
 };
 
-uint32_t get_square_palette(float angle, Palette p) {
-	// Using cos/sin ensures that as angle wraps, the color wraps perfectly
-	float color_sample = cosf(angle) * 0.5f + 0.5f; 
-	
-	// Lerp between Deep Red, Burnt Orange, and Amber
-	// uint32_t red = rgb(180, 5, 0);
-	// uint32_t orange = rgb(255, 60, 0);
-	// uint32_t gold = rgb(255, 160, 0);
-	
-	if (color_sample < 0.5f) {
-		return lerp_rgb(p.c1, p.c2, color_sample * 2.0f);
-	} else {
-		return lerp_rgb(p.c2, p.c3, (color_sample - 0.5f) * 2.0f);
-	}
-}
-
 uint32_t get_palette(float angle, Palette p) {
-	// 1. Normalize angle (-PI to PI) to a 0.0 to 1.0 range
-	// Adding TAU before fmod handles negative angles safely
 	float t = fmodf(angle, TAU);
 	if (t < 0) t += TAU;
 	t /= TAU; 
 
-	// 2. Divide 1.0 into three equal zones
+	// Divide 1.0 into three equal zones
 	float zone = t * 3.0f;
 
 	if (zone < 1.0f) {
-		// Zone 1: C1 to C2 (0° to 120°)
+		// 0 to 120 deg
 		return lerp_rgb(p.c1, p.c2, zone);
 	} else if (zone < 2.0f) {
-		// Zone 2: C2 to C3 (120° to 240°)
+		// 120 to 240 deg
 		return lerp_rgb(p.c2, p.c3, zone - 1.0f);
 	} else {
-		// Zone 3: C3 to C1 (240° to 360°)
+		// 240 to 360 deg
 		return lerp_rgb(p.c3, p.c1, zone - 2.0f);
 	}
 }
@@ -68,10 +48,11 @@ int next_palette(int current_palette) {
 	int roll = rand() % 100;
 	int next_palette = current_palette;
 
+	// Bias towards first two warm palettes
 	if (roll < 70) {
 		while ((next_palette = rand() % 2) == current_palette);
 	} else {
-		while ((next_palette = (rand() % 2) + 2) == current_palette);
+		while ((next_palette = (rand() % (NUM_PALETTES - 2)) + 2) == current_palette);
 	}
 	return next_palette;
 }
@@ -93,7 +74,7 @@ void organic_vibe_system(LEDBuffer leds) {
 	static float pulse_phase = 0;
 	static float rot_dir = 1.0f;
 	static float color_phase = 0;
-	static float state_switch_timer = 0;
+	static float circle_direction_timer = 0;
 
 	static float glint_level = 0.f;
 	static float glint_phase = 0;
@@ -115,13 +96,12 @@ void organic_vibe_system(LEDBuffer leds) {
 	static float show_spiral = 0.f;
 	static float show_spiral_accum = 0.0003f;
 
-	// Logic: State Machine "Director"
-	state_switch_timer += secondsDiff;
-	if (state_switch_timer > 30.0f) { // Every 30 seconds, change vibe
+	circle_direction_timer += secondsDiff;
+	if (circle_direction_timer > 30.0f) {
 		if (rand() % 10 > 5) {
 			rot_dir *= -1.0f; // Flip rotation
 		}
-		state_switch_timer = 0;
+		circle_direction_timer = 0;
 	}
 
 	pulse_dir_timer += secondsDiff;
@@ -199,20 +179,19 @@ void organic_vibe_system(LEDBuffer leds) {
 		float r = sqrtf(x*x + y*y);
 		float theta = atan2f(y, x);
 
-		// --- LAYER 0: THE SHELL SKELETON (Ambient) ---
+		// Layer 0: Radiating fibonacci shell spiral
 		float theta_rotating = theta + ambient_phase;
 		float twist_factor = 4.0f * 2.39996f;
 		float warped_theta = theta_rotating - r * twist_factor;
-		// We use a high power (powf) to make the 'arms' thinner/sharper
 		float shell_wave = (sinf(7.0f * warped_theta) + 1.0f) * 0.5f;
 		shell_wave = powf(shell_wave, 3.0f); // Sharpen the shell lines
 
-		// --- LAYER 1: THE BASE (Angular Drift) ---
+		// Layer 1: Base color spread via palette
 		uint32_t base_color = get_palette(theta + color_phase, current_palette);
 		// uint32_t base_color = get_palette(theta + color_phase, palettes[1]);
 		
-		// --- LAYER 2: THE PULSE (Radial) ---
-		// We use r and band_smooth_slow[1] (Low mids) to create "breathing"
+		// Layer 2: Radial Pulse modulating palette brightness
+		// r and band_smooth_slow[1] (Low mids) to create "breathing"
 		float wave = sinf(r * 12.0f - pulse_phase * 2.0f);
 		float pulse_intensity = (wave + 1.0f) * 0.5f * (0.2f + band_smooth_slow[1]);
 		// Scale base color by pulse intensity
@@ -225,19 +204,12 @@ void organic_vibe_system(LEDBuffer leds) {
 		shell_color = lerp_rgb(rgb(0,0,0), shell_color, shell_wave);
 		final_c = add_rgb(shell_color, final_c);
 
-		// --- LAYER 3: THE SPIRAL GLINT (High Freq) ---
-		// This uses the Golden Angle logic you had in biggest_spirals
+		// Layer 3: High-frequency glints
 		// Triggered only by treble transients (Band 6/7)
-		float spiral_theta = theta - r * 2.39996f; 
-		float glint_sin = sinf(spiral_theta * 4.0f + glint_phase * 4.0f);
-		float glint = (glint_sin > 0.9f) ? glint_level : 0;
-
 		if (glint_level > 0.04f) {
-			// Create a "stipple" pattern that changes based on the current glint event
-			// Using (i + last_glint_color_idx) ensures the 'random' spots change every hit
 			float noise = sinf((float)i * 1.618f + glint_seed); 
 			
-			if (noise > 0.96f) { // Only affect ~10% of pixels
+			if (noise > 0.96f) { // Only affect small percent of pixels
 				// Masking: Only show in the dark parts of the pulse
 				// We use (1.0 - pulse_intensity) to find the "valleys"
 				float masking = powf(1.0f - pulse_intensity, 3.0f);
@@ -493,11 +465,6 @@ void multisine(LEDBuffer leds) {
 		leds[i] = rgb(level, 0, level/3);
 	}
 }
-
-Sketch sketches[] = {
-	rgb_pulse,
-
-};
 
 void draw(LEDBuffer leds) {
 	for (int i = 0; i < 89; i++) {
