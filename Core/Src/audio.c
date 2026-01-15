@@ -14,11 +14,6 @@ int32_t audio_buffer[2][AUDIO_SAMPLES_HALF];
 // 0 or 1 written by producer
 volatile uint8_t audio_buffer_ready = 0xff;
 
-// arm_rfft_instance_q31 q31_fft;
-
-// Temp - for debugging
-// volatile uint16_t half_rx_buffer[AUDIO_BUFFER_SIZE];
-
 // Complex numbers
 float fft_input[FFT_SIZE * 2];
 
@@ -113,9 +108,6 @@ const uint16_t band_edges[NUM_FFT_BANDS + 1] = {
 };
 
 void write_half_audio_buffer(volatile uint16_t *rx_buffer_start, int buffer_idx) {
-	// for (int i = 0; i < AUDIO_BUFFER_SIZE; i++) {
-	// 	half_rx_buffer[i] = rx_buffer_start[i];
-	// }
 	for (int i = 0; i < AUDIO_SAMPLES_HALF; i++) {
 		// Index for left channel: skip right channel (4 halfwords per stereo frame)
 		uint16_t hi = rx_buffer_start[4 * i];      // High 16 bits of 24-bit sample (0xFFFC)

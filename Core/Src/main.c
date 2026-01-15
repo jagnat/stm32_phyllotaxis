@@ -130,7 +130,13 @@ int main(void)
   MX_SPI1_Init();
   MX_I2S2_Init();
   /* USER CODE BEGIN 2 */
+  // Configure DMA
   LL_DMA_SetPeriphAddress(DMA2, LL_DMA_STREAM_2, LL_SPI_DMA_GetRegAddr(SPI1));
+  LL_DMA_ConfigAddresses(DMA2, LL_DMA_STREAM_2, (uint32_t)spi_buffer, LL_SPI_DMA_GetRegAddr(SPI1),
+    LL_DMA_GetDataTransferDirection(DMA2, LL_DMA_STREAM_2));
+  LL_DMA_SetDataLength(DMA2, LL_DMA_STREAM_2, SPI_BUFFER_LEN);
+  LL_DMA_ClearFlag_TC2(DMA2);
+  // Enable SPI DMA
   LL_SPI_EnableDMAReq_TX(SPI1);
   LL_SPI_Enable(SPI1);
 
@@ -141,6 +147,8 @@ int main(void)
 
   LL_mDelay(20);
 
+  int dma_started = 0;
+
   /* USER CODE END 2 */
 
   /* Infinite loop */
@@ -148,12 +156,15 @@ int main(void)
   while (1)
   {
     button_update(&button, BUTTON_GPIO_Port, BUTTON_Pin);
-
     process_audio();
-
     draw(leds);
-
     apply_gamma_to_leds(leds);
+
+    if (dma_started) {
+      while (!LL_DMA_IsActiveFlag_TC2(DMA2));
+      while (LL_SPI_IsActiveFlag_BSY(SPI1));
+      LL_DMA_ClearFlag_TC2(DMA2);
+    }
 
     uint8_t *walk = spi_buffer;
     for (int i = 0; i < NUM_LEDS; i++) {
@@ -161,22 +172,11 @@ int main(void)
       walk += 9;
     }
 
-    LL_DMA_DisableStream(DMA2, LL_DMA_STREAM_2);
-    while (LL_DMA_IsEnabledStream(DMA2, LL_DMA_STREAM_2));  // Wait for it to stop
-
-    LL_DMA_ConfigAddresses(DMA2, LL_DMA_STREAM_2, (uint32_t)spi_buffer, LL_SPI_DMA_GetRegAddr(SPI1),
-      LL_DMA_GetDataTransferDirection(DMA2, LL_DMA_STREAM_2));
-    LL_DMA_SetDataLength(DMA2, LL_DMA_STREAM_2, SPI_BUFFER_LEN);
-
+    // Enable one shot of DMA to write LEDs
     LL_DMA_EnableStream(DMA2, LL_DMA_STREAM_2);
+    dma_started = 1;
 
-    while (!LL_DMA_IsActiveFlag_TC2(DMA2));
-    while (!LL_SPI_IsActiveFlag_TXE(SPI1));
-    while (LL_SPI_IsActiveFlag_BSY(SPI1));
-
-    LL_DMA_ClearFlag_TC2(DMA2);
-
-    LL_mDelay(1);
+    // LL_mDelay(1);
 
     /* USER CODE END WHILE */
 
